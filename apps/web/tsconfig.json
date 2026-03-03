@@ -1,0 +1,12 @@
+{
+  "extends": "@nebula/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "next-env.d.ts"],
+  "exclude": ["node_modules"]
+}

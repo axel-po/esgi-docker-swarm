@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+.turbo/
+
+# Environment variables
+*.env
+.env.*
+!.env.example
+
+# IDE & AI tools
+.agent/
+.agents/
+.claude/
+.windsurf/
+.cursor/
+.vscode/
+skills-lock.json
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Infra secrets
+infra/secrets/
+
+# Test coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Prisma
+prisma/migrations/*.sql.bak

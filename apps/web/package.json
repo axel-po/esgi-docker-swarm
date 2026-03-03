@@ -1,0 +1,26 @@
+{
+  "name": "@nebula/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start",
+    "lint": "next lint",
+    "clean": "rm -rf .next"
+  },
+  "dependencies": {
+    "@nebula/shared": "workspace:*",
+    "next": "^16.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@nebula/tsconfig": "workspace:*",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.56.1"
+  }
+}
