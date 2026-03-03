@@ -2,5 +2,14 @@ const tseslint = require("typescript-eslint");
 
 module.exports = tseslint.config(
   { ignores: [".next/**", "dist/**"] },
-  ...tseslint.configs.recommended
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    extends: tseslint.configs.recommended,
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: __dirname,
+      },
+    },
+  }
 );
