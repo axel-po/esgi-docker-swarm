@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { DatabaseModule } from "./database/database.module";
+import { PostsModule } from "./posts/posts.module";
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { DatabaseModule } from "./database/database.module";
         ssl: config.get<string>("NODE_ENV") === "production",
       }),
     }),
+    PostsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
