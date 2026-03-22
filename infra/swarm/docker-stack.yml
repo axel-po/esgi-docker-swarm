@@ -1,0 +1,227 @@
+version: "3.8"
+
+# ──────────────────────────────────────────────
+# Nebula — Docker Swarm Stack
+# ──────────────────────────────────────────────
+
+networks:
+  public:
+    driver: overlay
+
+  internal:
+    driver: overlay
+    internal: true
+
+services:
+  # ─── TRAEFIK (reverse proxy) ───
+  traefik:
+    image: traefik:v2.11
+    command:
+      - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=nebula_public"
+      - "--entrypoints.web.address=:80"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "8080:8080" # dashboard Traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - public
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      replicas: 1
+
+  # ─── POSTGRESQL ───
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD: nebula
+      POSTGRES_DB: nebula
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  # ─── REDIS ───
+  redis:
+    image: redis:7-alpine
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+
+  # ─── RABBITMQ ───
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+
+  # ─── MINIO ───
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  # ─── API ───
+  api:
+    image: ${REGISTRY:-localhost:5000}/nebula-api:${TAG:-latest}
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://nebula:nebula@postgres:5432/nebula
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      NODE_ENV: production
+      VERSION: ${TAG:-latest}
+    networks:
+      - public
+      - internal
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
+        - "traefik.http.routers.api.entrypoints=web"
+        - "traefik.http.services.api.loadbalancer.server.port=3001"
+        - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+        - "traefik.http.routers.api.middlewares=api-strip"
+
+  # ─── WEB ───
+  web:
+    image: ${REGISTRY:-localhost:5000}/nebula-web:${TAG:-latest}
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+    networks:
+      - public
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+        - "traefik.http.routers.web.entrypoints=web"
+        - "traefik.http.routers.web.priority=1"
+        - "traefik.http.services.web.loadbalancer.server.port=3000"
+
+  # ─── MEDIA ───
+  media:
+    image: ${REGISTRY:-localhost:5000}/nebula-media:${TAG:-latest}
+    environment:
+      PORT: 3003
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: nebula-media
+      NODE_ENV: production
+      VERSION: ${TAG:-latest}
+    networks:
+      - public
+      - internal
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.media.rule=PathPrefix(`/media`)"
+        - "traefik.http.routers.media.entrypoints=web"
+        - "traefik.http.services.media.loadbalancer.server.port=3003"
+        - "traefik.http.middlewares.media-strip.stripprefix.prefixes=/media"
+        - "traefik.http.routers.media.middlewares=media-strip"
+
+  # ─── NOTIFICATIONS ───
+  notifications:
+    image: ${REGISTRY:-localhost:5000}/nebula-notifications:${TAG:-latest}
+    environment:
+      PORT: 3004
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      NODE_ENV: production
+      VERSION: ${TAG:-latest}
+    networks:
+      - internal
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        order: start-first
+
+  # ─── SEARCH ───
+  search:
+    image: ${REGISTRY:-localhost:5000}/nebula-search:${TAG:-latest}
+    environment:
+      PORT: 3005
+      API_URL: http://api:3001
+      NODE_ENV: production
+      VERSION: ${TAG:-latest}
+    networks:
+      - public
+      - internal
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.search.rule=PathPrefix(`/search`)"
+        - "traefik.http.routers.search.entrypoints=web"
+        - "traefik.http.services.search.loadbalancer.server.port=3005"
+
+volumes:
+  pgdata:
+  miniodata:
