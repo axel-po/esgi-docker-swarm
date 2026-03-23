@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { readSecret } from "@nebula/shared";
 import { DrizzleService } from "../database/drizzle.service";
 import { posts } from "../database/schema";
 import amqplib from "amqplib";
@@ -24,7 +25,10 @@ export class PostsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     try {
-      const url = this.config.get("RABBITMQ_URL", "amqp://localhost:5672");
+      const rabbitmqPass = readSecret("rabbitmq_password");
+      const url = rabbitmqPass
+        ? `amqp://nebula:${rabbitmqPass}@rabbitmq:5672`
+        : this.config.get("RABBITMQ_URL", "amqp://localhost:5672");
       this.rabbit = await amqplib.connect(url);
       this.channel = await this.rabbit.createChannel();
       await this.channel.assertQueue("post.created", { durable: true });

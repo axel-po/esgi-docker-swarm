@@ -1,4 +1,5 @@
 // Shared types between web and api
+export { readSecret } from "./read-secret";
 
 export interface User {
   id: string;

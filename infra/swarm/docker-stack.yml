@@ -12,6 +12,18 @@ networks:
     driver: overlay
     internal: true
 
+secrets:
+  db_password:
+    external: true
+  db_url:
+    external: true
+  rabbitmq_password:
+    external: true
+  minio_access_key:
+    external: true
+  minio_secret_key:
+    external: true
+
 services:
   # ─── TRAEFIK (reverse proxy) ───
   traefik:
@@ -42,8 +54,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: nebula
-      POSTGRES_PASSWORD: nebula
       POSTGRES_DB: nebula
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -66,8 +80,10 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: nebula
+      RABBITMQ_DEFAULT_PASS_FILE: /run/secrets/rabbitmq_password
+    secrets:
+      - rabbitmq_password
     networks:
       - internal
     deploy:
@@ -78,8 +94,11 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_access_key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_secret_key
+    secrets:
+      - minio_access_key
+      - minio_secret_key
     volumes:
       - miniodata:/data
     networks:
@@ -95,10 +114,11 @@ services:
     image: ${REGISTRY:-localhost:5000}/nebula-api:${TAG:-latest}
     environment:
       PORT: 3001
-      DATABASE_URL: postgresql://nebula:nebula@postgres:5432/nebula
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       NODE_ENV: production
       VERSION: ${TAG:-latest}
+    secrets:
+      - db_url
+      - rabbitmq_password
     networks:
       - public
       - internal
@@ -148,14 +168,15 @@ services:
     image: ${REGISTRY:-localhost:5000}/nebula-media:${TAG:-latest}
     environment:
       PORT: 3003
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: nebula-media
       NODE_ENV: production
       VERSION: ${TAG:-latest}
+    secrets:
+      - rabbitmq_password
+      - minio_access_key
+      - minio_secret_key
     networks:
       - public
       - internal
@@ -181,9 +202,10 @@ services:
     image: ${REGISTRY:-localhost:5000}/nebula-notifications:${TAG:-latest}
     environment:
       PORT: 3004
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       NODE_ENV: production
       VERSION: ${TAG:-latest}
+    secrets:
+      - rabbitmq_password
     networks:
       - internal
     deploy:

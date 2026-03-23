@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { readSecret } from "@nebula/shared";
 import amqplib from "amqplib";
 
 @Injectable()
@@ -20,7 +21,10 @@ export class AppService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     try {
-      const url = this.config.get("RABBITMQ_URL", "amqp://localhost:5672");
+      const rabbitmqPass = readSecret("rabbitmq_password");
+      const url = rabbitmqPass
+        ? `amqp://nebula:${rabbitmqPass}@rabbitmq:5672`
+        : this.config.get("RABBITMQ_URL", "amqp://localhost:5672");
       this.rabbit = await amqplib.connect(url);
       this.channel = await this.rabbit.createChannel();
 
