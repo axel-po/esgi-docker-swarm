@@ -1,7 +1,7 @@
 #!/bin/bash
 # ──────────────────────────────────────────────
 # Crée les secrets Docker pour le cluster Swarm
-# À lancer UNE SEULE FOIS sur le manager (VM1)
+# 
 # ──────────────────────────────────────────────
 
 set -e
