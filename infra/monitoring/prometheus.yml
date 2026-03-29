@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Métriques Traefik
+  - job_name: "traefik"
+    static_configs:
+      - targets: ["traefik:8080"]
+
+  # Métriques des nodes (CPU, RAM, disque)
+  - job_name: "node-exporter"
+    dns_sd_configs:
+      - names: ["tasks.node-exporter"]
+        type: A
+        port: 9100
+
+  # Métriques des conteneurs (CPU, RAM par conteneur)
+  - job_name: "cadvisor"
+    dns_sd_configs:
+      - names: ["tasks.cadvisor"]
+        type: A
+        port: 8080
+
+  # Health checks des services applicatifs
+  - job_name: "api"
+    metrics_path: /health
+    static_configs:
+      - targets: ["api:3001"]
+
+  - job_name: "media"
+    metrics_path: /health
+    static_configs:
+      - targets: ["media:3003"]
+
+  - job_name: "notifications"
+    metrics_path: /health
+    static_configs:
+      - targets: ["notifications:3004"]
+
+  - job_name: "search"
+    metrics_path: /health
+    static_configs:
+      - targets: ["search:3005"]

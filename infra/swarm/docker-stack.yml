@@ -12,6 +12,9 @@ networks:
     driver: overlay
     internal: true
 
+  monitoring:
+    driver: overlay
+
 secrets:
   db_password:
     external: true
@@ -35,6 +38,7 @@ services:
       - "--entrypoints.web.address=:80"
       - "--api.dashboard=true"
       - "--api.insecure=true"
+      - "--metrics.prometheus=true"
       - "--log.level=INFO"
     ports:
       - "80:80"
@@ -43,6 +47,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - public
+      - monitoring
     deploy:
       placement:
         constraints:
@@ -122,6 +127,7 @@ services:
     networks:
       - public
       - internal
+      - monitoring
     deploy:
       replicas: 2
       update_config:
@@ -180,6 +186,7 @@ services:
     networks:
       - public
       - internal
+      - monitoring
     deploy:
       replicas: 2
       update_config:
@@ -208,6 +215,7 @@ services:
       - rabbitmq_password
     networks:
       - internal
+      - monitoring
     deploy:
       replicas: 2
       update_config:
@@ -229,6 +237,7 @@ services:
     networks:
       - public
       - internal
+      - monitoring
     deploy:
       replicas: 2
       update_config:
@@ -244,6 +253,91 @@ services:
         - "traefik.http.routers.search.entrypoints=web"
         - "traefik.http.services.search.loadbalancer.server.port=3005"
 
+  # ─── PROMETHEUS ───
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - prometheus_data:/prometheus
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - monitoring
+      - internal
+      - public
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)"
+        - "traefik.http.routers.prometheus.entrypoints=web"
+        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # ─── GRAFANA ───
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    configs:
+      - source: grafana_datasource
+        target: /etc/grafana/provisioning/datasources/datasource.yml
+    networks:
+      - monitoring
+      - public
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+        - "traefik.http.routers.grafana.entrypoints=web"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # ─── NODE EXPORTER (métriques système, 1 par noeud) ───
+  node-exporter:
+    image: prom/node-exporter:latest
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+
+  # ─── CADVISOR (métriques conteneurs, 1 par noeud) ───
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+
+configs:
+  prometheus_config:
+    file: ./infra/monitoring/prometheus.yml
+  grafana_datasource:
+    file: ./infra/monitoring/grafana/provisioning/datasources/datasource.yml
+
 volumes:
   pgdata:
   miniodata:
+  prometheus_data:
+  grafana_data:
