@@ -1,0 +1,31 @@
+name: Deploy to Swarm
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de l'image à déployer"
+        required: false
+        default: "latest"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Déployer sur le manager Swarm
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SWARM_HOST }}
+          username: ${{ secrets.SWARM_USER }}
+          key: ${{ secrets.SWARM_SSH_KEY }}
+          port: ${{ secrets.SWARM_PORT }}
+          script: |
+            export REGISTRY=docker.io/${{ secrets.DOCKER_USERNAME }}
+            export TAG=${{ github.event.inputs.tag }}
+            cd /home/${{ secrets.SWARM_USER }}/nebula
+            docker stack deploy -c docker-stack.yml nebula
+            echo "Déployé avec tag: $TAG"
+            docker stack services nebula
