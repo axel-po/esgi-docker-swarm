@@ -150,6 +150,7 @@ services:
     image: ${REGISTRY:-localhost:5000}/nebula-web:${TAG:-latest}
     environment:
       PORT: 3000
+      HOSTNAME: 0.0.0.0
       NODE_ENV: production
     networks:
       - public

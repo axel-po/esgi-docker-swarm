@@ -86,6 +86,7 @@ services:
       - "3000:3000"
     environment:
       PORT: 3000
+      HOSTNAME: 0.0.0.0
       NODE_ENV: development
 
   media:
