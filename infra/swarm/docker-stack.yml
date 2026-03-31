@@ -1,17 +1,11 @@
 version: "3.8"
 
-# ──────────────────────────────────────────────
-# Nebula — Docker Swarm Stack
-# ──────────────────────────────────────────────
-
 networks:
   public:
     driver: overlay
-
   internal:
     driver: overlay
     internal: true
-
   monitoring:
     driver: overlay
 
@@ -27,8 +21,13 @@ secrets:
   minio_secret_key:
     external: true
 
+configs:
+  prometheus_config:
+    file: ./infra/monitoring/prometheus.yml
+  grafana_datasource:
+    file: ./infra/monitoring/grafana/provisioning/datasources/datasource.yml
+
 services:
-  # ─── TRAEFIK (reverse proxy) ───
   traefik:
     image: traefik:v2.11
     command:
@@ -42,7 +41,7 @@ services:
       - "--log.level=INFO"
     ports:
       - "80:80"
-      - "8080:8080" # dashboard Traefik
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -54,7 +53,6 @@ services:
           - node.role == manager
       replicas: 1
 
-  # ─── POSTGRESQL ───
   postgres:
     image: postgres:16-alpine
     environment:
@@ -73,7 +71,6 @@ services:
         constraints:
           - node.role == manager
 
-  # ─── REDIS ───
   redis:
     image: redis:7-alpine
     networks:
@@ -81,29 +78,22 @@ services:
     deploy:
       replicas: 1
 
-  # ─── RABBITMQ ───
   rabbitmq:
     image: rabbitmq:3-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: nebula
-      RABBITMQ_DEFAULT_PASS_FILE: /run/secrets/rabbitmq_password
-    secrets:
-      - rabbitmq_password
+      RABBITMQ_DEFAULT_PASS: rabbitmq123
     networks:
       - internal
     deploy:
       replicas: 1
 
-  # ─── MINIO ───
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_access_key
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_secret_key
-    secrets:
-      - minio_access_key
-      - minio_secret_key
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
     volumes:
       - miniodata:/data
     networks:
@@ -114,16 +104,15 @@ services:
         constraints:
           - node.role == manager
 
-  # ─── API ───
   api:
-    image: ${REGISTRY:-localhost:5000}/nebula-api:${TAG:-latest}
+    image: ${REGISTRY:-axelpo}/nebula-api:${TAG:-latest}
     environment:
       PORT: 3001
       NODE_ENV: production
       VERSION: ${TAG:-latest}
+      RABBITMQ_URL: amqp://nebula:rabbitmq123@rabbitmq:5672
     secrets:
       - db_url
-      - rabbitmq_password
     networks:
       - public
       - internal
@@ -145,9 +134,8 @@ services:
         - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
         - "traefik.http.routers.api.middlewares=api-strip"
 
-  # ─── WEB ───
   web:
-    image: ${REGISTRY:-localhost:5000}/nebula-web:${TAG:-latest}
+    image: ${REGISTRY:-axelpo}/nebula-web:${TAG:-latest}
     environment:
       PORT: 3000
       HOSTNAME: 0.0.0.0
@@ -170,20 +158,18 @@ services:
         - "traefik.http.routers.web.priority=1"
         - "traefik.http.services.web.loadbalancer.server.port=3000"
 
-  # ─── MEDIA ───
   media:
-    image: ${REGISTRY:-localhost:5000}/nebula-media:${TAG:-latest}
+    image: ${REGISTRY:-axelpo}/nebula-media:${TAG:-latest}
     environment:
       PORT: 3003
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_BUCKET: nebula-media
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      RABBITMQ_URL: amqp://nebula:rabbitmq123@rabbitmq:5672
       NODE_ENV: production
       VERSION: ${TAG:-latest}
-    secrets:
-      - rabbitmq_password
-      - minio_access_key
-      - minio_secret_key
     networks:
       - public
       - internal
@@ -205,15 +191,13 @@ services:
         - "traefik.http.middlewares.media-strip.stripprefix.prefixes=/media"
         - "traefik.http.routers.media.middlewares=media-strip"
 
-  # ─── NOTIFICATIONS ───
   notifications:
-    image: ${REGISTRY:-localhost:5000}/nebula-notifications:${TAG:-latest}
+    image: ${REGISTRY:-axelpo}/nebula-notifications:${TAG:-latest}
     environment:
       PORT: 3004
+      RABBITMQ_URL: amqp://nebula:rabbitmq123@rabbitmq:5672
       NODE_ENV: production
       VERSION: ${TAG:-latest}
-    secrets:
-      - rabbitmq_password
     networks:
       - internal
       - monitoring
@@ -227,9 +211,8 @@ services:
         parallelism: 1
         order: start-first
 
-  # ─── SEARCH ───
   search:
-    image: ${REGISTRY:-localhost:5000}/nebula-search:${TAG:-latest}
+    image: ${REGISTRY:-axelpo}/nebula-search:${TAG:-latest}
     environment:
       PORT: 3005
       API_URL: http://api:3001
@@ -254,7 +237,6 @@ services:
         - "traefik.http.routers.search.entrypoints=web"
         - "traefik.http.services.search.loadbalancer.server.port=3005"
 
-  # ─── PROMETHEUS ───
   prometheus:
     image: prom/prometheus:latest
     volumes:
@@ -277,7 +259,6 @@ services:
         - "traefik.http.routers.prometheus.entrypoints=web"
         - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
-  # ─── GRAFANA ───
   grafana:
     image: grafana/grafana:latest
     environment:
@@ -302,7 +283,6 @@ services:
         - "traefik.http.routers.grafana.entrypoints=web"
         - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
-  # ─── NODE EXPORTER (métriques système, 1 par noeud) ───
   node-exporter:
     image: prom/node-exporter:latest
     volumes:
@@ -318,7 +298,6 @@ services:
     deploy:
       mode: global
 
-  # ─── CADVISOR (métriques conteneurs, 1 par noeud) ───
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     volumes:
@@ -330,12 +309,6 @@ services:
       - monitoring
     deploy:
       mode: global
-
-configs:
-  prometheus_config:
-    file: ./infra/monitoring/prometheus.yml
-  grafana_datasource:
-    file: ./infra/monitoring/grafana/provisioning/datasources/datasource.yml
 
 volumes:
   pgdata:
