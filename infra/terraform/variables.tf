@@ -45,3 +45,39 @@ variable "vm_password" {
   sensitive   = true
   default     = "etudiant"
 }
+
+variable "db_password" {
+  description = "Mot de passe PostgreSQL"
+  type        = string
+  sensitive   = true
+}
+
+variable "rabbitmq_password" {
+  description = "Mot de passe RabbitMQ"
+  type        = string
+  sensitive   = true
+}
+
+variable "minio_access_key" {
+  description = "Clé accès MinIO"
+  type        = string
+  sensitive   = true
+}
+
+variable "minio_secret_key" {
+  description = "Clé secrète MinIO"
+  type        = string
+  sensitive   = true
+}
+
+variable "bastion_host" {
+  description = "IP du bastion pour atteindre le réseau interne"
+  type        = string
+  default     = "10.210.0.11"
+}
+
+variable "bastion_port" {
+  description = "Port SSH du bastion (port forwarding OpenWrt)"
+  type        = number
+  default     = 2221
+}
