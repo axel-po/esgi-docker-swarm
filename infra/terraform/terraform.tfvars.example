@@ -1,0 +1,10 @@
+# Fichier exemple - copier en terraform.tfvars et remplir
+
+proxmox_url   = "https://10.255.0.221:8006/"
+proxmox_token = "pointuda@pve!labomatics=VOTRE_TOKEN_SECRET"
+proxmox_node  = "airbus4"
+proxmox_pool  = "pointuda"
+template_vmid = 100000
+vnet          = "vn00011"
+vm_user       = "etudiant"
+vm_password   = "etudiant"
