@@ -85,6 +85,7 @@ resource "null_resource" "install_docker" {
   provisioner "remote-exec" {
     inline = [
       "echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf",
+      "while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do echo 'Waiting for apt lock...'; sleep 5; done",
       "sudo apt-get update -y",
       "curl -fsSL https://get.docker.com | sh",
       "sudo usermod -aG docker ${var.vm_user}",
