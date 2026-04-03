@@ -313,8 +313,25 @@ services:
     deploy:
       mode: global
 
+  portainer:
+    image: portainer/portainer-ce:latest
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    networks:
+      - public
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
 volumes:
   pgdata:
   miniodata:
   prometheus_data:
   grafana_data:
+  portainer_data:
